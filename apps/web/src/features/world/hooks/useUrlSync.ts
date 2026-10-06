@@ -1,19 +1,19 @@
 import { useEffect } from 'react';
 import { useWorldStore } from '../store/worldStore';
-import { pathToPoint, pointToPath } from '../utils/coordinates';
+import { pathToPoint, pointToPath, getInitialPointFromUrl } from '../utils/coordinates';
 
 /**
  * Keeps the URL (`/@x,y`) and the camera in sync:
- *  - on load, a coordinate URL becomes the starting camera position
+ *  - on load, a coordinate URL becomes the starting camera position (at 2% default zoom)
  *  - while moving, the URL is updated (debounced) with replaceState
  *  - back/forward navigation flies the camera to the new coordinate
  */
 export function useUrlSync(): void {
   useEffect(() => {
-    const initial = pathToPoint(window.location.pathname);
+    const initial = getInitialPointFromUrl();
     if (initial) {
       const { camera, setCamera } = useWorldStore.getState();
-      setCamera({ ...camera, x: initial.x, y: initial.y, zoom: 0.8 });
+      setCamera({ ...camera, x: initial.x, y: initial.y, zoom: 0.02 });
     }
 
     let timer: ReturnType<typeof setTimeout> | undefined;

@@ -46,6 +46,7 @@ export function useRealtime(): void {
           const data = JSON.parse(event.data as string) as ServerWsMessage;
           if (data.type === 'message.created') {
             const { message } = data;
+            useWorldStore.getState().inscribeMessage(message);
             useWorldStore.getState().showToast(
               `New message appeared nearby at ${message.position.x}, ${message.position.y}`,
             );

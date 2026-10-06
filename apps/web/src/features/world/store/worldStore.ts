@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import type { SessionInfo, WorldMessage, WorldPoint } from '@canvas/shared-types';
 import { clampCamera, clampZoom, type Camera } from '../utils/coordinates';
 
+import { pickDiscoveryPoint } from '../services/worldApi';
+
 export interface FlyToRequest {
   x: number;
   y: number;
@@ -19,6 +21,7 @@ interface WorldState {
   isComposerOpen: boolean;
   activeReportMessage: WorldMessage | null;
   toastMessage: string | null;
+  lastCreatedMessage: WorldMessage | null;
 
   setCamera: (camera: Camera) => void;
   requestFlyTo: (point: WorldPoint, zoom?: number) => void;
@@ -31,9 +34,11 @@ interface WorldState {
   openComposerAt: (point?: WorldPoint) => void;
   setActiveReportMessage: (message: WorldMessage | null) => void;
   showToast: (text: string) => void;
+  inscribeMessage: (message: WorldMessage) => void;
 }
 
-export const DEFAULT_CAMERA: Camera = { x: 0, y: 0, zoom: 0.5 };
+const initialPoint = pickDiscoveryPoint();
+export const DEFAULT_CAMERA: Camera = { x: initialPoint.x, y: initialPoint.y, zoom: 0.02 };
 
 let nonce = 0;
 let toastTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -48,6 +53,7 @@ export const useWorldStore = create<WorldState>((set, get) => ({
   isComposerOpen: false,
   activeReportMessage: null,
   toastMessage: null,
+  lastCreatedMessage: null,
 
   setCamera: (camera) => set({ camera: clampCamera(camera) }),
 
@@ -77,28 +83,28 @@ export const useWorldStore = create<WorldState>((set, get) => ({
   setComposerOpen: (isComposerOpen) => set({ isComposerOpen }),
   openComposerAt: (point) => {
     const state = get();
-    if (point) {
-      if (state.session) {
-        set({
-          isComposerOpen: true,
-          session: {
-            ...state.session,
-            position: point,
-          },
-        });
-      } else {
-        set({
-          isComposerOpen: true,
-          session: {
-            sessionId: 'local-session',
-            position: point,
-            worldSide: 10_000,
-            limits: { maxWords: 1000, maxChars: 10_000 },
-          },
-        });
-      }
+    const targetPoint = point || {
+      x: Math.floor(state.camera.x / 100) * 100,
+      y: Math.floor(state.camera.y / 100) * 100,
+    };
+    if (state.session) {
+      set({
+        isComposerOpen: true,
+        session: {
+          ...state.session,
+          position: targetPoint,
+        },
+      });
     } else {
-      set({ isComposerOpen: true });
+      set({
+        isComposerOpen: true,
+        session: {
+          sessionId: 'local-session',
+          position: targetPoint,
+          worldSide: 10_000,
+          limits: { maxWords: 1000, maxChars: 10_000 },
+        },
+      });
     }
   },
   setActiveReportMessage: (activeReportMessage) => set({ activeReportMessage }),
@@ -109,4 +115,5 @@ export const useWorldStore = create<WorldState>((set, get) => ({
       set({ toastMessage: null });
     }, 3500);
   },
+  inscribeMessage: (lastCreatedMessage) => set({ lastCreatedMessage }),
 }));

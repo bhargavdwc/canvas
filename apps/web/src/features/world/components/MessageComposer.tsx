@@ -11,6 +11,8 @@ export function MessageComposer() {
   const requestFlyTo = useWorldStore((s) => s.requestFlyTo);
   const showToast = useWorldStore((s) => s.showToast);
 
+  const inscribeMessage = useWorldStore((s) => s.inscribeMessage);
+
   const [content, setContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +21,11 @@ export function MessageComposer() {
 
   if (!isOpen) return null;
 
-  const pos = session?.position;
+  const currentCamera = useWorldStore.getState().camera;
+  const pos = session?.position || {
+    x: Math.floor(currentCamera.x / 100) * 100,
+    y: Math.floor(currentCamera.y / 100) * 100,
+  };
   const chars = content.length;
   const dims = getBoxDimensions(content);
   const isOverChars = chars > MAX_MESSAGE_CHARS;
@@ -32,13 +38,19 @@ export function MessageComposer() {
     try {
       setSubmitting(true);
       setError(null);
-      if (pos) {
-        await reallocateSession(pos);
-      }
+      await reallocateSession(pos);
       const created = await createMessage(content);
+
+      // Inscribe immediately so the card is added directly to canvas cache
+      inscribeMessage(created);
+
       setOpen(false);
       setContent('');
-      requestFlyTo(created.position, 1.5);
+
+      // Stay on the exact position! If zoom is too small to read (< 0.75), adjust zoom to 0.85 so message is clearly legible
+      const zoom = Math.max(currentCamera.zoom, 0.85);
+      requestFlyTo(created.position, zoom);
+
       showToast(`Note inscribed at ${created.position.x}, ${created.position.y}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to inscribe note.');

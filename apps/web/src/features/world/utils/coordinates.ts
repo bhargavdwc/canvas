@@ -98,3 +98,33 @@ export function pathToPoint(pathname: string): WorldPoint | null {
 export function pointToPath(point: WorldPoint): string {
   return `/@${Math.round(point.x)},${Math.round(point.y)}`;
 }
+
+/** Reads initial target coordinate from pathname, hash or query params. */
+export function getInitialPointFromUrl(): WorldPoint | null {
+  if (typeof window === 'undefined') return null;
+  const fromPath = pathToPoint(window.location.pathname);
+  if (fromPath) return fromPath;
+
+  if (window.location.hash) {
+    const rawHash = window.location.hash.replace(/^#\/?/, '');
+    const fromHash = pathToPoint('/' + rawHash) || parseCoordinateInput(rawHash);
+    if (fromHash) return fromHash;
+  }
+
+  if (window.location.search) {
+    const params = new URLSearchParams(window.location.search);
+    const coord = params.get('coord') || params.get('c');
+    if (coord) {
+      const parsed = parseCoordinateInput(coord);
+      if (parsed) return parsed;
+    }
+    const x = params.get('x');
+    const y = params.get('y');
+    if (x && y) {
+      const parsed = parseCoordinateInput(`${x},${y}`);
+      if (parsed) return parsed;
+    }
+  }
+
+  return null;
+}

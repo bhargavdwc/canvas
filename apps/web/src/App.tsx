@@ -27,7 +27,7 @@ export default function App() {
 
   const handleRandom = () => {
     const pt = pickDiscoveryPoint();
-    useWorldStore.getState().requestFlyTo(pt, 1);
+    useWorldStore.getState().requestFlyTo(pt, 0.02);
     useWorldStore.getState().markInteracted();
   };
 

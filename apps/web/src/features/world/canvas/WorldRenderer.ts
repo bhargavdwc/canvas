@@ -269,6 +269,11 @@ export class WorldRenderer {
 
     this.unsubscribe = useWorldStore.subscribe((state, prev) => {
       if (state.flyTo && state.flyTo !== prev.flyTo) this.startFlight(state.flyTo);
+      if (state.lastCreatedMessage && state.lastCreatedMessage !== prev.lastCreatedMessage) {
+        this.cache.upsertMany([state.lastCreatedMessage]);
+        this.loadedBounds = null;
+        this.dirty = true;
+      }
     });
     // A fly-to may have been requested before the renderer was ready.
     const pending = useWorldStore.getState().flyTo;

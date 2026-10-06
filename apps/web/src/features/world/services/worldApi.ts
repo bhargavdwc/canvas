@@ -160,7 +160,6 @@ export async function createMessage(content: string): Promise<WorldMessage> {
     const body = (await res.json()) as ApiResponse<{ message: WorldMessage }>;
     if (body.success) {
       cachedTotal++;
-      void initSession();
       return body.data.message;
     }
     throw new Error(body.error.message || 'Failed to create message');
@@ -177,7 +176,6 @@ export async function createMessage(content: string): Promise<WorldMessage> {
   getMockWorld().all.push(newMsg);
   getMockWorld().index.upsertMany([newMsg]);
   cachedTotal = getMockWorld().all.length;
-  await reallocateSession();
   return newMsg;
 }
 
@@ -223,14 +221,17 @@ export function getWorldStats(): { totalMessages: number } {
 }
 
 export function pickDiscoveryPoint(): WorldPoint {
-  const { all } = getMockWorld();
-  if (all.length > 0) {
-    const pick = all[Math.floor(Math.random() * all.length)];
-    if (pick) return pick.position;
-  }
+  // Pick random coordinates across the vast canvas (-350,000 to +350,000), snapped to 100 units
+  // Guaranteed minimum distance of 15,000 units from (0,0) so it never clusters near origin
+  const signX = Math.random() < 0.5 ? -1 : 1;
+  const signY = Math.random() < 0.5 ? -1 : 1;
+  const minDist = 15_000;
+  const maxDist = 350_000;
+  const rawX = minDist + Math.random() * (maxDist - minDist);
+  const rawY = minDist + Math.random() * (maxDist - minDist);
   return {
-    x: Math.round((Math.random() * 2 - 1) * 1500),
-    y: Math.round((Math.random() * 2 - 1) * 1500),
+    x: Math.round((signX * rawX) / 100) * 100,
+    y: Math.round((signY * rawY) / 100) * 100,
   };
 }
 

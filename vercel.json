@@ -4,7 +4,6 @@
   "installCommand": "pnpm install",
   "buildCommand": "pnpm --filter @canvas/shared-types build && pnpm --filter @canvas/validation build && pnpm --filter @canvas/web build",
   "outputDirectory": "apps/web/dist",
-  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/(.*)",
