@@ -1,0 +1,23 @@
+{
+  "name": "spatial-message-world",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A persistent multiplayer spatial message canvas.",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @canvas/api --filter @canvas/web dev",
+    "dev:web": "pnpm --filter @canvas/web dev",
+    "dev:api": "pnpm --filter @canvas/api dev",
+    "seed": "pnpm --filter @canvas/api seed",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2"
+  }
+}
