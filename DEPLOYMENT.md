@@ -29,7 +29,7 @@ You can deploy to Render either using the automated **Blueprint (`render.yaml`)*
 1. Push your repository to GitHub / GitLab.
 2. In the [Render Dashboard](https://dashboard.render.com/), click **New +** -> **Blueprint**.
 3. Connect your repository. Render will automatically detect [`render.yaml`](file:///d:/extra/canvas/render.yaml) and configure:
-   - Build Command: `corepack enable && pnpm install --frozen-lockfile=false && pnpm --filter @canvas/shared-types build && pnpm --filter @canvas/validation build && pnpm --filter @canvas/api build`
+   - Build Command: `pnpm install --frozen-lockfile=false && pnpm --filter @canvas/shared-types build && pnpm --filter @canvas/validation build && pnpm --filter @canvas/api build`
    - Start Command: `pnpm --filter @canvas/api start`
    - Health Check Path: `/health`
 4. Set the prompted environment variables:
@@ -46,7 +46,7 @@ You can deploy to Render either using the automated **Blueprint (`render.yaml`)*
    - **Runtime**: `Node`
    - **Build Command**:
      ```bash
-     corepack enable && pnpm install --frozen-lockfile=false && pnpm --filter @canvas/shared-types build && pnpm --filter @canvas/validation build && pnpm --filter @canvas/api build
+     pnpm install --frozen-lockfile=false && pnpm --filter @canvas/shared-types build && pnpm --filter @canvas/validation build && pnpm --filter @canvas/api build
      ```
    - **Start Command**:
      ```bash

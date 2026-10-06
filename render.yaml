@@ -4,11 +4,13 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: corepack enable && pnpm install --frozen-lockfile=false && pnpm --filter @canvas/shared-types build && pnpm --filter @canvas/validation build && pnpm --filter @canvas/api build
+    buildCommand: pnpm install --frozen-lockfile=false && pnpm --filter @canvas/shared-types build && pnpm --filter @canvas/validation build && pnpm --filter @canvas/api build
     startCommand: pnpm --filter @canvas/api start
     healthCheckPath: /health
     autoDeploy: true
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: NODE_ENV
         value: production
       - key: HOST
