@@ -3,6 +3,7 @@ import { MAX_MESSAGE_CHARS } from '@canvas/shared-types';
 import { useWorldStore } from '../store/worldStore';
 import { createMessage, reallocateSession } from '../services/worldApi';
 import { getBoxDimensions } from '../canvas/WorldRenderer';
+import { WORLD_MAX_X } from '../utils/coordinates';
 
 export function MessageComposer() {
   const isOpen = useWorldStore((s) => s.isComposerOpen);
@@ -26,8 +27,9 @@ export function MessageComposer() {
     x: Math.floor(currentCamera.x / 100) * 100,
     y: Math.floor(currentCamera.y / 100) * 100,
   };
+  const maxCols = Math.max(1, Math.floor((WORLD_MAX_X - pos.x) / 100));
   const chars = content.length;
-  const dims = getBoxDimensions(content);
+  const dims = getBoxDimensions(content, maxCols);
   const isOverChars = chars > MAX_MESSAGE_CHARS;
   const canSubmit = content.trim().length > 0 && !isOverChars && !submitting;
 
@@ -70,7 +72,7 @@ export function MessageComposer() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="composer-title"
-        className="relative flex w-full max-w-[540px] flex-col rounded-sm border border-zinc-800 bg-[#09090b] p-6 shadow-2xl"
+        className="relative flex w-full max-w-[540px] flex-col rounded-sm border border-zinc-800 bg-[#09090b] p-6 shadow-2xl select-text"
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-zinc-800/80 pb-4">

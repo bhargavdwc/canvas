@@ -2,8 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { CHUNK_SIZE, MIN_MESSAGE_DISTANCE, type WorldMessage } from '@canvas/shared-types';
 import {
   clampZoom,
+  clampCamera,
   MAX_ZOOM,
   MIN_ZOOM,
+  WORLD_MAX_X,
+  WORLD_MAX_Y,
+  WORLD_MIN_X,
+  WORLD_MIN_Y,
   parseCoordinateInput,
   pathToPoint,
   pointToPath,
@@ -116,7 +121,7 @@ describe('distance', () => {
     expect(isFarEnough({ x: 0, y: 0 }, { x: MIN_MESSAGE_DISTANCE, y: 0 }, MIN_MESSAGE_DISTANCE)).toBe(
       true,
     );
-    expect(isFarEnough({ x: 0, y: 0 }, { x: 140, y: 140 }, MIN_MESSAGE_DISTANCE)).toBe(false);
+    expect(isFarEnough({ x: 0, y: 0 }, { x: 70, y: 70 }, MIN_MESSAGE_DISTANCE)).toBe(false);
   });
 });
 
@@ -189,5 +194,42 @@ describe('getBoxDimensions', () => {
     expect(formatted).toBeDefined();
     expect(formatted.length).toBeGreaterThan(0);
   });
+
+  it('respects maxCols constraint when near world edge', async () => {
+    const { getBoxDimensions } = await import('../canvas/WorldRenderer');
+    const longMsg = 'This is a long message that would normally take multiple columns';
+    const dims = getBoxDimensions(longMsg, 1);
+    expect(dims.cols).toBe(1);
+    expect(dims.rows).toBeGreaterThanOrEqual(2);
+  });
 });
+
+describe('clampCamera boundaries and navbar protection', () => {
+  const viewport: Size = { width: 1200, height: 800 };
+
+  it('keeps the top edge of the last box below the navbar at 400% zoom', () => {
+    const topInset = 64; // e.g. 56px navbar + 8px buffer
+    const clamped = clampCamera({ x: WORLD_MAX_X, y: WORLD_MAX_Y, zoom: 4 }, viewport, { top: topInset });
+    // Verify that the top border of the world (WORLD_MAX_Y) is at or below topInset on screen
+    const screenPoint = worldToScreen({ x: WORLD_MAX_X, y: WORLD_MAX_Y }, clamped, viewport);
+    expect(screenPoint.y).toBeGreaterThanOrEqual(topInset - 0.001);
+  });
+
+  it('allows the camera to reach the right border of the last box', () => {
+    const clamped = clampCamera({ x: WORLD_MAX_X + 500, y: 0, zoom: 4 }, viewport);
+    const screenPoint = worldToScreen({ x: WORLD_MAX_X, y: 0 }, clamped, viewport);
+    expect(screenPoint.x).toBeLessThanOrEqual(viewport.width + 0.001);
+  });
+
+  it('clamps without size to the full world extent including the last box', () => {
+    const clampedMax = clampCamera({ x: 2_000_000, y: 2_000_000, zoom: 1 });
+    expect(clampedMax.x).toBe(WORLD_MAX_X);
+    expect(clampedMax.y).toBe(WORLD_MAX_Y);
+
+    const clampedMin = clampCamera({ x: -2_000_000, y: -2_000_000, zoom: 1 });
+    expect(clampedMin.x).toBe(WORLD_MIN_X);
+    expect(clampedMin.y).toBe(WORLD_MIN_Y);
+  });
+});
+
 

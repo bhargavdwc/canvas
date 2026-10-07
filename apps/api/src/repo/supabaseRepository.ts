@@ -225,47 +225,74 @@ export class SupabaseRepository implements Repository {
     expiresAt: string,
     now: string,
   ): Promise<boolean> {
-    const minX = point.x - minDistance;
-    const maxX = point.x + minDistance;
-    const minY = point.y - minDistance;
-    const maxY = point.y + minDistance;
-    const minDistSq = minDistance * minDistance;
+    if (minDistance <= 100) {
+      // 1. Each 100x100 grid box has its own coordinate: check if this specific box is occupied
+      const { data: msgCandidates, error: msgErr } = await this.client
+        .from('messages')
+        .select('x, y')
+        .neq('status', 'deleted')
+        .eq('x', point.x)
+        .eq('y', point.y)
+        .limit(1);
 
-    // 1. Collision check with existing active/hidden messages
-    const { data: msgCandidates, error: msgErr } = await this.client
-      .from('messages')
-      .select('x, y')
-      .neq('status', 'deleted')
-      .gte('x', minX)
-      .lte('x', maxX)
-      .gte('y', minY)
-      .lte('y', maxY);
+      if (msgErr) throw new Error(`Supabase collision query error: ${msgErr.message}`);
+      if (msgCandidates && msgCandidates.length > 0) return false;
 
-    if (msgErr) throw new Error(`Supabase collision query error: ${msgErr.message}`);
+      // 2. Collision check with active reservations of other visitors at this exact box
+      const { data: resCandidates, error: resErr } = await this.client
+        .from('reservations')
+        .select('x, y, session_id')
+        .neq('session_id', sessionId)
+        .gt('expires_at', now)
+        .eq('x', point.x)
+        .eq('y', point.y)
+        .limit(1);
 
-    for (const m of (msgCandidates || []) as Array<{ x: number; y: number }>) {
-      const dx = m.x - point.x;
-      const dy = m.y - point.y;
-      if (dx * dx + dy * dy < minDistSq) return false;
-    }
+      if (resErr) throw new Error(`Supabase reservation collision error: ${resErr.message}`);
+      if (resCandidates && resCandidates.length > 0) return false;
+    } else {
+      const minX = point.x - minDistance;
+      const maxX = point.x + minDistance;
+      const minY = point.y - minDistance;
+      const maxY = point.y + minDistance;
+      const minDistSq = minDistance * minDistance;
 
-    // 2. Collision check with active reservations of other visitors
-    const { data: resCandidates, error: resErr } = await this.client
-      .from('reservations')
-      .select('x, y, session_id')
-      .neq('session_id', sessionId)
-      .gt('expires_at', now)
-      .gte('x', minX)
-      .lte('x', maxX)
-      .gte('y', minY)
-      .lte('y', maxY);
+      // 1. Collision check with existing active/hidden messages
+      const { data: msgCandidates, error: msgErr } = await this.client
+        .from('messages')
+        .select('x, y')
+        .neq('status', 'deleted')
+        .gte('x', minX)
+        .lte('x', maxX)
+        .gte('y', minY)
+        .lte('y', maxY);
 
-    if (resErr) throw new Error(`Supabase reservation collision error: ${resErr.message}`);
+      if (msgErr) throw new Error(`Supabase collision query error: ${msgErr.message}`);
 
-    for (const r of (resCandidates || []) as Array<{ x: number; y: number }>) {
-      const dx = r.x - point.x;
-      const dy = r.y - point.y;
-      if (dx * dx + dy * dy < minDistSq) return false;
+      for (const m of (msgCandidates || []) as Array<{ x: number; y: number }>) {
+        const dx = m.x - point.x;
+        const dy = m.y - point.y;
+        if (dx * dx + dy * dy < minDistSq) return false;
+      }
+
+      // 2. Collision check with active reservations of other visitors
+      const { data: resCandidates, error: resErr } = await this.client
+        .from('reservations')
+        .select('x, y, session_id')
+        .neq('session_id', sessionId)
+        .gt('expires_at', now)
+        .gte('x', minX)
+        .lte('x', maxX)
+        .gte('y', minY)
+        .lte('y', maxY);
+
+      if (resErr) throw new Error(`Supabase reservation collision error: ${resErr.message}`);
+
+      for (const r of (resCandidates || []) as Array<{ x: number; y: number }>) {
+        const dx = r.x - point.x;
+        const dy = r.y - point.y;
+        if (dx * dx + dy * dy < minDistSq) return false;
+      }
     }
 
     // 3. Atomically upsert reservation for this visitor

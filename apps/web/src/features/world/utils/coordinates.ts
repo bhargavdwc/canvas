@@ -27,11 +27,65 @@ export function clampZoom(zoom: number): number {
   return clamp(zoom, MIN_ZOOM, MAX_ZOOM);
 }
 
-export function clampCamera(camera: Camera): Camera {
+export const WORLD_BOX_SIZE = 100;
+export const WORLD_MIN_X = -WORLD_HALF_EXTENT;
+export const WORLD_MAX_X = WORLD_HALF_EXTENT + WORLD_BOX_SIZE;
+export const WORLD_MIN_Y = -WORLD_HALF_EXTENT;
+export const WORLD_MAX_Y = WORLD_HALF_EXTENT + WORLD_BOX_SIZE;
+
+export interface CameraInsets {
+  top?: number;
+  bottom?: number;
+  left?: number;
+  right?: number;
+}
+
+export function getTopNavbarHeight(): number {
+  if (typeof document !== 'undefined') {
+    const el = document.querySelector('header');
+    if (el) {
+      const h = el.getBoundingClientRect().height;
+      if (h > 0) return h;
+    }
+  }
+  return 56;
+}
+
+export function clampCamera(camera: Camera, size?: Size, insets?: CameraInsets): Camera {
+  const zoom = clampZoom(camera.zoom);
+
+  const minLimitX = WORLD_MIN_X;
+  const maxLimitX = WORLD_MAX_X;
+  const minLimitY = WORLD_MIN_Y;
+  const maxLimitY = WORLD_MAX_Y;
+
+  if (!size || size.width === 0 || size.height === 0) {
+    return {
+      x: clamp(camera.x, minLimitX, maxLimitX),
+      y: clamp(camera.y, minLimitY, maxLimitY),
+      zoom,
+    };
+  }
+
+  // Measure top navbar dynamically so the last box never collides with or hides under the navbar on any screen size
+  const navbarH = getTopNavbarHeight();
+  const topInset = insets?.top ?? (navbarH + 8);
+  const bottomInset = insets?.bottom ?? 0;
+  const leftInset = insets?.left ?? 0;
+  const rightInset = insets?.right ?? 0;
+
+  const halfW = size.width / 2;
+  const halfH = size.height / 2;
+
+  const minX = minLimitX + (halfW - leftInset) / zoom;
+  const maxX = maxLimitX - (halfW - rightInset) / zoom;
+  const minY = minLimitY + (halfH - bottomInset) / zoom;
+  const maxY = maxLimitY - (halfH - topInset) / zoom;
+
   return {
-    x: clamp(camera.x, -WORLD_HALF_EXTENT, WORLD_HALF_EXTENT),
-    y: clamp(camera.y, -WORLD_HALF_EXTENT, WORLD_HALF_EXTENT),
-    zoom: clampZoom(camera.zoom),
+    x: minX <= maxX ? clamp(camera.x, minX, maxX) : (minLimitX + maxLimitX) / 2,
+    y: minY <= maxY ? clamp(camera.y, minY, maxY) : (minLimitY + maxLimitY) / 2,
+    zoom,
   };
 }
 
@@ -59,7 +113,7 @@ export function zoomAt(camera: Camera, size: Size, sx: number, sy: number, zoom:
     zoom: next,
     x: anchor.x - (sx - size.width / 2) / next,
     y: anchor.y + (sy - size.height / 2) / next,
-  });
+  }, size);
 }
 
 export function formatCoordinate(point: WorldPoint): string {

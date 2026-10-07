@@ -10,6 +10,10 @@ import {
   zoomAt,
   type Camera,
   type Size,
+  WORLD_MIN_X,
+  WORLD_MAX_X,
+  WORLD_MIN_Y,
+  WORLD_MAX_Y,
 } from '../utils/coordinates';
 import { ChunkedMessageCache } from '../utils/messageCache';
 import { boundsContain, expandBounds, getViewportBounds, padBounds } from '../utils/viewport';
@@ -87,12 +91,21 @@ const CANDIDATE_BOX_SIZES: Array<{ cols: number; rows: number }> = [
   { cols: 6, rows: 6 }, // 600x600
 ];
 
+const SINGLE_COL_CANDIDATE_SIZES: Array<{ cols: number; rows: number }> = [
+  { cols: 1, rows: 1 },
+  { cols: 1, rows: 2 },
+  { cols: 1, rows: 3 },
+  { cols: 1, rows: 4 },
+  { cols: 1, rows: 5 },
+  { cols: 1, rows: 6 },
+];
+
 /**
  * Calculates how many grid boxes a message occupies based on its text content length and layout.
  * Dynamically scales columns and rows based on text length and explicit line breaks
  * so large messages assign neighbor boxes seamlessly without overflowing.
  */
-export function getBoxDimensions(content: string): {
+export function getBoxDimensions(content: string, maxCols?: number): {
   cols: number;
   rows: number;
   width: number;
@@ -103,7 +116,13 @@ export function getBoxDimensions(content: string): {
     return { cols: 1, rows: 1, width: BOX_SIZE, height: BOX_SIZE };
   }
 
-  for (const candidate of CANDIDATE_BOX_SIZES) {
+  const pool = maxCols === 1
+    ? SINGLE_COL_CANDIDATE_SIZES
+    : maxCols
+      ? CANDIDATE_BOX_SIZES.filter((c) => c.cols <= maxCols)
+      : CANDIDATE_BOX_SIZES;
+
+  for (const candidate of pool) {
     const charsPerLine = Math.max(10, Math.floor((candidate.cols * BOX_SIZE - 24) / 6.1));
     const maxLines = Math.max(1, Math.floor((candidate.rows * BOX_SIZE - 32) / 14.5));
     const lines = estimateWrappedLines(text, charsPerLine);
@@ -118,7 +137,7 @@ export function getBoxDimensions(content: string): {
     }
   }
 
-  const largest = CANDIDATE_BOX_SIZES[CANDIDATE_BOX_SIZES.length - 1]!;
+  const largest = pool[pool.length - 1] || CANDIDATE_BOX_SIZES[0]!;
   return {
     cols: largest.cols,
     rows: largest.rows,
@@ -311,9 +330,15 @@ export class WorldRenderer {
     this.updateInertia(dt);
 
     const store = useWorldStore.getState();
-    const camera = store.camera;
     const size = this.size;
     if (size.width === 0 || size.height === 0) return;
+
+    let camera = store.camera;
+    const clamped = clampCamera(camera, size);
+    if (clamped.x !== camera.x || clamped.y !== camera.y || clamped.zoom !== camera.zoom) {
+      this.setCamera(clamped);
+      camera = clamped;
+    }
 
     const sizeChanged =
       size.width !== this.renderedSize.width || size.height !== this.renderedSize.height;
@@ -384,6 +409,27 @@ export class WorldRenderer {
     g.clear();
     const { zoom } = camera;
 
+    const minLimitX = WORLD_MIN_X;
+    const maxLimitX = WORLD_MAX_X;
+    const minLimitY = WORLD_MIN_Y;
+    const maxLimitY = WORLD_MAX_Y;
+
+    const view = getViewportBounds(camera, size);
+
+    // Visible range clamped to the world boundary
+    const clampedMinX = Math.max(minLimitX, view.minX);
+    const clampedMaxX = Math.min(maxLimitX, view.maxX);
+    const clampedMinY = Math.max(minLimitY, view.minY);
+    const clampedMaxY = Math.min(maxLimitY, view.maxY);
+
+    // If viewport is completely outside the world bounds, nothing inside the world to draw
+    if (clampedMinX > clampedMaxX || clampedMinY > clampedMaxY) {
+      return;
+    }
+
+    const sx = (x: number) => Math.round((x - camera.x) * zoom + size.width / 2) + 0.5;
+    const sy = (y: number) => Math.round((camera.y - y) * zoom + size.height / 2) + 0.5;
+
     // 1-2-5 scale for smooth, consistent box density across all zoom levels
     // Target min box size ~ 18px so many boxes are visible even at 2% zoom (zoom = 0.02)
     const MIN_PX = 18;
@@ -419,24 +465,26 @@ export class WorldRenderer {
     const minorAlpha = 0.04 + 0.03 * fade;
     const majorAlpha = 0.12 + 0.03 * fade;
 
-    const view = getViewportBounds(camera, size);
-    const sx = (x: number) => Math.round((x - camera.x) * zoom + size.width / 2) + 0.5;
-    const sy = (y: number) => Math.round((camera.y - y) * zoom + size.height / 2) + 0.5;
+    const topScreenY = sy(clampedMaxY);
+    const bottomScreenY = sy(clampedMinY);
+    const leftScreenX = sx(clampedMinX);
+    const rightScreenX = sx(clampedMaxX);
 
     const strokeLines = (step: number, skipMultipleOf: number | null, alpha: number) => {
-      const x0 = Math.ceil(view.minX / step);
-      const x1 = Math.floor(view.maxX / step);
+      // Lines are strictly clamped within [minLimit, maxLimit]
+      const x0 = Math.ceil(clampedMinX / step);
+      const x1 = Math.floor(clampedMaxX / step);
       for (let i = x0; i <= x1; i++) {
         if (skipMultipleOf && i % skipMultipleOf === 0) continue;
         const px = sx(i * step);
-        g.moveTo(px, 0).lineTo(px, size.height);
+        g.moveTo(px, topScreenY).lineTo(px, bottomScreenY);
       }
-      const y0 = Math.ceil(view.minY / step);
-      const y1 = Math.floor(view.maxY / step);
+      const y0 = Math.ceil(clampedMinY / step);
+      const y1 = Math.floor(clampedMaxY / step);
       for (let i = y0; i <= y1; i++) {
         if (skipMultipleOf && i % skipMultipleOf === 0) continue;
         const py = sy(i * step);
-        g.moveTo(0, py).lineTo(size.width, py);
+        g.moveTo(leftScreenX, py).lineTo(rightScreenX, py);
       }
       g.stroke({ width: 1, color: 0xffffff, alpha });
     };
@@ -446,20 +494,25 @@ export class WorldRenderer {
 
     // World axes (0, 0) - dull center plus / crosshair lines
     if (view.minX <= 0 && view.maxX >= 0) {
-      g.moveTo(sx(0), 0).lineTo(sx(0), size.height);
+      g.moveTo(sx(0), topScreenY).lineTo(sx(0), bottomScreenY);
     }
     if (view.minY <= 0 && view.maxY >= 0) {
-      g.moveTo(0, sy(0)).lineTo(size.width, sy(0));
+      g.moveTo(leftScreenX, sy(0)).lineTo(rightScreenX, sy(0));
     }
     g.stroke({ width: 1, color: 0xffffff, alpha: 0.22 });
 
-    // World border - subtle dull border
-    const E = WORLD_HALF_EXTENT;
-    for (const edge of [-E, E]) {
-      if (edge >= view.minX && edge <= view.maxX) g.moveTo(sx(edge), 0).lineTo(sx(edge), size.height);
-      if (edge >= view.minY && edge <= view.maxY) g.moveTo(0, sy(edge)).lineTo(size.width, sy(edge));
+    // World border - subtle clean edge line at boundaries enclosing the world
+    for (const edgeX of [minLimitX, maxLimitX]) {
+      if (edgeX >= view.minX && edgeX <= view.maxX) {
+        g.moveTo(sx(edgeX), topScreenY).lineTo(sx(edgeX), bottomScreenY);
+      }
     }
-    g.stroke({ width: 1, color: 0xffffff, alpha: 0.28 });
+    for (const edgeY of [minLimitY, maxLimitY]) {
+      if (edgeY >= view.minY && edgeY <= view.maxY) {
+        g.moveTo(leftScreenX, sy(edgeY)).lineTo(rightScreenX, sy(edgeY));
+      }
+    }
+    g.stroke({ width: 1.5, color: 0xffffff, alpha: 0.35 });
   }
 
   private drawDots(visible: WorldMessage[], camera: Camera, size: Size): void {
@@ -522,9 +575,10 @@ export class WorldRenderer {
   }
 
   private createCard(message: WorldMessage): CardView {
-    const { cols, rows, width, height } = getBoxDimensions(message.content);
     const bx = Math.floor(message.position.x / BOX_SIZE) * BOX_SIZE;
     const by = Math.floor(message.position.y / BOX_SIZE) * BOX_SIZE;
+    const maxCols = Math.max(1, Math.floor((WORLD_MAX_X - bx) / BOX_SIZE));
+    const { cols, rows, width, height } = getBoxDimensions(message.content, maxCols);
     const topY = by + BOX_SIZE;
     const accent = ACCENTS[accentIndex(message.id)] as number;
     const root = new Container();
@@ -605,16 +659,20 @@ export class WorldRenderer {
   // ------------------------------------------------------------- camera moves
 
   private setCamera(camera: Camera): void {
-    useWorldStore.getState().setCamera(camera);
+    const clamped = clampCamera(camera, this.size);
+    useWorldStore.getState().setCamera(clamped);
   }
 
   private startFlight(request: { x: number; y: number; zoom?: number }): void {
     const from = useWorldStore.getState().camera;
-    const to = clampCamera({
-      x: request.x,
-      y: request.y,
-      zoom: request.zoom ?? from.zoom,
-    });
+    const to = clampCamera(
+      {
+        x: request.x,
+        y: request.y,
+        zoom: request.zoom ?? from.zoom,
+      },
+      this.size,
+    );
     this.inertia = null;
     this.flight = { from, to, elapsed: 0, duration: 850 };
   }
@@ -701,7 +759,14 @@ export class WorldRenderer {
     const current = this.localPoint(e);
 
     if (!previous) {
-      canvas.style.cursor = this.hit(current.x, current.y) ? 'pointer' : 'grab';
+      const camera = useWorldStore.getState().camera;
+      const p = screenToWorld(current.x, current.y, camera, this.size);
+      const targetX = Math.floor(p.x / BOX_SIZE) * BOX_SIZE;
+      const targetY = Math.floor(p.y / BOX_SIZE) * BOX_SIZE;
+      const E = WORLD_HALF_EXTENT;
+      const isOutside = targetX < -E || targetX > E || targetY < -E || targetY > E;
+      const isFilled = isOutside || Boolean(this.hit(current.x, current.y) || this.isBoxOccupied(targetX, targetY));
+      canvas.style.cursor = isFilled ? 'not-allowed' : 'pointer';
       return;
     }
 
@@ -760,17 +825,25 @@ export class WorldRenderer {
     const isClick =
       this.dragDistance < CLICK_SLOP_PX && performance.now() - this.downAt < 500;
     if (isClick) {
-      const message = this.hit(point.x, point.y);
-      if (message) {
-        useWorldStore.getState().selectMessage(message);
-        return;
-      }
-
-      // Empty coordinate / box clicked! Open write message box at that exact box coordinate
       const camera = useWorldStore.getState().camera;
       const p = screenToWorld(point.x, point.y, camera, this.size);
       const targetX = Math.floor(p.x / BOX_SIZE) * BOX_SIZE;
       const targetY = Math.floor(p.y / BOX_SIZE) * BOX_SIZE;
+
+      const E = WORLD_HALF_EXTENT;
+      if (targetX < -E || targetX > E || targetY < -E || targetY > E) {
+        return; // Clicked outside the world boundary
+      }
+
+      const hitMessage = this.hit(point.x, point.y);
+      const isFilled = Boolean(hitMessage || this.isBoxOccupied(targetX, targetY));
+
+      if (isFilled) {
+        // Filled box is not clickable ("when i click any fill box so i not cllick")
+        return;
+      }
+
+      // Empty coordinate / box clicked! Open write message box at that exact box coordinate
       useWorldStore.getState().openComposerAt({ x: targetX, y: targetY });
       return;
     }
@@ -861,5 +934,31 @@ export class WorldRenderer {
       }
     }
     return best;
+  }
+
+  /** Checks whether the grid box at (targetX, targetY) is occupied by any active note. */
+  private isBoxOccupied(targetX: number, targetY: number): boolean {
+    const candidates = this.cache.queryBounds({
+      minX: targetX - 600,
+      maxX: targetX + 600,
+      minY: targetY - 600,
+      maxY: targetY + 600,
+    });
+    for (const m of candidates) {
+      if (m.status === 'deleted') continue;
+      const { width, height } = getBoxDimensions(m.content);
+      const bx = Math.floor(m.position.x / BOX_SIZE) * BOX_SIZE;
+      const by = Math.floor(m.position.y / BOX_SIZE) * BOX_SIZE;
+      const minBoxY = by - height + BOX_SIZE;
+      if (
+        targetX >= bx &&
+        targetX < bx + width &&
+        targetY >= minBoxY &&
+        targetY <= by
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 }

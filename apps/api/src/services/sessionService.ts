@@ -127,7 +127,7 @@ export class SessionService {
     if (!reserved) {
       throw AppError.conflict(
         'POSITION_COLLISION',
-        'This coordinate or its adjacent area is already occupied by another message.',
+        'This coordinate is already occupied by another message.',
       );
     }
 

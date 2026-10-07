@@ -30,11 +30,6 @@ const iconProps = {
 export function WorldControls() {
   const zoomBy = useWorldStore((s) => s.zoomBy);
 
-  const goHome = () => {
-    useWorldStore.getState().requestFlyTo({ x: 0, y: 0 }, 0.5);
-    useWorldStore.getState().markInteracted();
-  };
-
   return (
     <div className="flex flex-col items-end">
       <div className="flex flex-col divide-y divide-white/10 overflow-hidden rounded-2xl border border-white/15 bg-black shadow-2xl shadow-black/80">
@@ -46,12 +41,6 @@ export function WorldControls() {
         <IconButton id="zoom-out" label="Zoom out (-)" onClick={() => zoomBy(1 / 1.6)}>
           <svg {...iconProps}>
             <path d="M5 12h14" />
-          </svg>
-        </IconButton>
-        <IconButton id="go-origin" label="Return to origin (0, 0)" onClick={goHome}>
-          <svg {...iconProps}>
-            <circle cx="12" cy="12" r="3" />
-            <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
           </svg>
         </IconButton>
       </div>

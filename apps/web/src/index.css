@@ -52,6 +52,30 @@ body,
   user-select: none;
 }
 
+/* Allow text selection in inputs, textareas, dialogs, modals, and selectable containers */
+input,
+textarea,
+[contenteditable="true"],
+[role="dialog"],
+[role="dialog"] *:not(button):not(button *):not(svg):not(svg *),
+.select-text {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Keep buttons non-selectable to prevent accidental highlight on click */
+button,
+button * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Sleek custom selection highlight */
+::selection {
+  background-color: rgba(34, 211, 238, 0.35);
+  color: #ffffff;
+}
+
 /* Premium Dark Frosted Glass Surface */
 .glass {
   background: linear-gradient(145deg, rgba(16, 22, 42, 0.82), rgba(8, 12, 24, 0.88));

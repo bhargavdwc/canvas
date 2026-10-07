@@ -159,17 +159,22 @@ export class PostgresRepository implements Repository {
       }
 
       const conflict = await client.query(
-        `SELECT 1 FROM messages
-          WHERE status <> 'deleted'
-            AND location && ST_Expand(ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 0), $3::float8)
-            AND ST_Distance(location, ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 0)) < $3::float8
-          UNION ALL
-         SELECT 1 FROM reservations
-          WHERE session_id <> $4::uuid AND expires_at > $5::timestamptz
-            AND location && ST_Expand(ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 0), $3::float8)
-            AND ST_Distance(location, ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 0)) < $3::float8
-          LIMIT 1`,
-        [point.x, point.y, minDistance, sessionId, now],
+        minDistance <= 100
+          ? `SELECT 1 FROM messages WHERE status <> 'deleted' AND x = $1 AND y = $2
+             UNION ALL
+             SELECT 1 FROM reservations WHERE session_id <> $3::uuid AND expires_at > $4::timestamptz AND x = $1 AND y = $2
+             LIMIT 1`
+          : `SELECT 1 FROM messages
+              WHERE status <> 'deleted'
+                AND location && ST_Expand(ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 0), $3::float8)
+                AND ST_Distance(location, ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 0)) < $3::float8
+              UNION ALL
+             SELECT 1 FROM reservations
+              WHERE session_id <> $4::uuid AND expires_at > $5::timestamptz
+                AND location && ST_Expand(ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 0), $3::float8)
+                AND ST_Distance(location, ST_SetSRID(ST_MakePoint($1::float8, $2::float8), 0)) < $3::float8
+              LIMIT 1`,
+        minDistance <= 100 ? [point.x, point.y, sessionId, now] : [point.x, point.y, minDistance, sessionId, now],
       );
       if ((conflict.rowCount ?? 0) > 0) {
         await client.query('ROLLBACK');

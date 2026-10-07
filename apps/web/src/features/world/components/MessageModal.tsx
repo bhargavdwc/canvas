@@ -55,7 +55,7 @@ export function MessageModal() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="message-modal-title"
-        className="glass-card animate-pop flex max-h-[85dvh] w-full max-w-xl flex-col rounded-3xl shadow-2xl"
+        className="glass-card animate-pop flex max-h-[85dvh] w-full max-w-xl flex-col rounded-3xl shadow-2xl select-text"
       >
         <header className="flex items-start justify-between gap-4 border-b border-white/10 px-6 sm:px-7 pt-6 pb-4">
           <div>

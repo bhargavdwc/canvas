@@ -2,8 +2,8 @@
 
 /** The world spans [-WORLD_HALF_EXTENT, +WORLD_HALF_EXTENT] on both axes (integers). */
 export const WORLD_HALF_EXTENT = 1_000_000;
-/** Minimum distance (world units) between any two messages. */
-export const MIN_MESSAGE_DISTANCE = 200;
+/** Minimum distance (world units) between any two messages (each grid box is 100x100). */
+export const MIN_MESSAGE_DISTANCE = 100;
 /** Edge length of a spatial chunk, in world units. */
 export const CHUNK_SIZE = 1000;
 /** Content limits. 1000 words is NOT 1000 characters, so both are enforced. */

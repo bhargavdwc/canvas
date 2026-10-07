@@ -194,30 +194,48 @@ export class MemoryRepository implements Repository {
     expiresAt: string,
     now: string,
   ): Promise<boolean> {
-    const min2 = minDistance * minDistance;
-    const cx = chunkIdx(point.x);
-    const cy = chunkIdx(point.y);
-    const radius = Math.max(1, Math.ceil(minDistance / CHUNK_SIZE));
-
-    for (let ix = cx - radius; ix <= cx + radius; ix++) {
-      for (let iy = cy - radius; iy <= cy + radius; iy++) {
-        const key = ckey(ix, iy);
-        for (const m of this.chunks.get(key) ?? []) {
-          if (m.status === 'deleted') continue;
-          const dx = m.position.x - point.x;
-          const dy = m.position.y - point.y;
-          if (dx * dx + dy * dy < min2) return false;
+    if (minDistance <= 100) {
+      const cx = chunkIdx(point.x);
+      const cy = chunkIdx(point.y);
+      for (const m of this.chunks.get(ckey(cx, cy)) ?? []) {
+        if (m.status === 'deleted') continue;
+        if (m.position.x === point.x && m.position.y === point.y) return false;
+      }
+      const owners = this.resChunks.get(ckey(cx, cy));
+      if (owners) {
+        for (const owner of owners) {
+          if (owner === sessionId) continue;
+          const r = this.reservations.get(owner);
+          if (!r || r.expiresAt <= now) continue;
+          if (r.position.x === point.x && r.position.y === point.y) return false;
         }
-        const owners = this.resChunks.get(key);
-        if (owners) {
-          for (const owner of owners) {
-            if (owner === sessionId) continue;
-            const r = this.reservations.get(owner);
-            if (!r) continue;
-            if (r.expiresAt <= now) continue; // expired: ignore (purged lazily)
-            const dx = r.position.x - point.x;
-            const dy = r.position.y - point.y;
+      }
+    } else {
+      const min2 = minDistance * minDistance;
+      const cx = chunkIdx(point.x);
+      const cy = chunkIdx(point.y);
+      const radius = Math.max(1, Math.ceil(minDistance / CHUNK_SIZE));
+
+      for (let ix = cx - radius; ix <= cx + radius; ix++) {
+        for (let iy = cy - radius; iy <= cy + radius; iy++) {
+          const key = ckey(ix, iy);
+          for (const m of this.chunks.get(key) ?? []) {
+            if (m.status === 'deleted') continue;
+            const dx = m.position.x - point.x;
+            const dy = m.position.y - point.y;
             if (dx * dx + dy * dy < min2) return false;
+          }
+          const owners = this.resChunks.get(key);
+          if (owners) {
+            for (const owner of owners) {
+              if (owner === sessionId) continue;
+              const r = this.reservations.get(owner);
+              if (!r) continue;
+              if (r.expiresAt <= now) continue; // expired: ignore (purged lazily)
+              const dx = r.position.x - point.x;
+              const dy = r.position.y - point.y;
+              if (dx * dx + dy * dy < min2) return false;
+            }
           }
         }
       }

@@ -13,5 +13,5 @@ export function WorldCanvas() {
     return () => renderer.destroy();
   }, []);
 
-  return <div ref={hostRef} id="world-canvas" className="absolute inset-0 touch-none bg-black" />;
+  return <div ref={hostRef} id="world-canvas" className="absolute inset-0 touch-none select-none bg-black" />;
 }

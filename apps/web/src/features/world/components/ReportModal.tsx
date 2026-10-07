@@ -41,7 +41,7 @@ export function ReportModal() {
         role="dialog"
         aria-modal="true"
         aria-labelledby="report-modal-title"
-        className="glass-card animate-pop w-full max-w-md rounded-3xl p-6 shadow-2xl border border-rose-500/30"
+        className="glass-card animate-pop w-full max-w-md rounded-3xl p-6 shadow-2xl border border-rose-500/30 select-text"
       >
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <div className="flex items-center gap-2">

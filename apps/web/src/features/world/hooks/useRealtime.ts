@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { ClientWsMessage, ServerWsMessage } from '@canvas/shared-types';
+import { WORLD_HALF_EXTENT, type ClientWsMessage, type ServerWsMessage } from '@canvas/shared-types';
 import { useWorldStore } from '../store/worldStore';
 import { getViewportBounds } from '../utils/viewport';
 
@@ -81,16 +81,17 @@ export function useRealtime(): void {
             width: window.innerWidth,
             height: window.innerHeight,
           });
-          const msg: ClientWsMessage = {
-            type: 'subscribe',
-            bounds: {
-              minX: Math.round(bounds.minX),
-              maxX: Math.round(bounds.maxX),
-              minY: Math.round(bounds.minY),
-              maxY: Math.round(bounds.maxY),
-            },
-          };
-          ws.send(JSON.stringify(msg));
+          const minX = Math.max(-WORLD_HALF_EXTENT, Math.min(WORLD_HALF_EXTENT, Math.round(bounds.minX)));
+          const maxX = Math.max(-WORLD_HALF_EXTENT, Math.min(WORLD_HALF_EXTENT, Math.round(bounds.maxX)));
+          const minY = Math.max(-WORLD_HALF_EXTENT, Math.min(WORLD_HALF_EXTENT, Math.round(bounds.minY)));
+          const maxY = Math.max(-WORLD_HALF_EXTENT, Math.min(WORLD_HALF_EXTENT, Math.round(bounds.maxY)));
+          if (minX <= maxX && minY <= maxY) {
+            const msg: ClientWsMessage = {
+              type: 'subscribe',
+              bounds: { minX, maxX, minY, maxY },
+            };
+            ws.send(JSON.stringify(msg));
+          }
         }
       }, 350);
     });

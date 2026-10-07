@@ -1,10 +1,11 @@
-import type {
-  ApiResponse,
-  ReportReason,
-  SessionInfo,
-  WorldBounds,
-  WorldMessage,
-  WorldPoint,
+import {
+  WORLD_HALF_EXTENT,
+  type ApiResponse,
+  type ReportReason,
+  type SessionInfo,
+  type WorldBounds,
+  type WorldMessage,
+  type WorldPoint,
 } from '@canvas/shared-types';
 import { getMockWorld } from './mockWorld';
 
@@ -127,11 +128,17 @@ export async function fetchMessagesInBounds(
   const isLive = await checkBackend();
   if (isLive) {
     try {
+      const minX = Math.max(-WORLD_HALF_EXTENT, Math.min(WORLD_HALF_EXTENT, Math.round(bounds.minX)));
+      const maxX = Math.max(-WORLD_HALF_EXTENT, Math.min(WORLD_HALF_EXTENT, Math.round(bounds.maxX)));
+      const minY = Math.max(-WORLD_HALF_EXTENT, Math.min(WORLD_HALF_EXTENT, Math.round(bounds.minY)));
+      const maxY = Math.max(-WORLD_HALF_EXTENT, Math.min(WORLD_HALF_EXTENT, Math.round(bounds.maxY)));
+      if (minX > maxX || minY > maxY) return [];
+
       const params = new URLSearchParams({
-        minX: String(Math.round(bounds.minX)),
-        maxX: String(Math.round(bounds.maxX)),
-        minY: String(Math.round(bounds.minY)),
-        maxY: String(Math.round(bounds.maxY)),
+        minX: String(minX),
+        maxX: String(maxX),
+        minY: String(minY),
+        maxY: String(maxY),
         limit: '2000',
       });
       const res = await apiFetch(`/api/v1/world/messages?${params.toString()}`, { signal });
