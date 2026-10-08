@@ -15,7 +15,9 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "world:master": "pnpm --filter @canvas/web world:master",
+    "world:tiles": "pnpm --filter @canvas/web world:tiles"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2"

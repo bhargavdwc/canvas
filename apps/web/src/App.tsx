@@ -87,8 +87,6 @@ export default function App() {
           <WorldStatus />
         </div>
 
-
-
         {/* Bottom Right: Spatial Controls Dock */}
         <div className="pointer-events-auto">
           <WorldControls />
@@ -103,4 +101,3 @@ export default function App() {
     </main>
   );
 }
-

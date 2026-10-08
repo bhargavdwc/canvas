@@ -10,3 +10,6 @@ coverage
 .data
 .data/*
 .tempmediaStorage
+
+# Generated 16K world master (large; regenerate with pnpm world:master)
+apps/web/assets/world/world-master.png

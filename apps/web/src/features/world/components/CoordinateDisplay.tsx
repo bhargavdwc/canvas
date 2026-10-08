@@ -40,7 +40,9 @@ export function CoordinateDisplay() {
       <div className="h-3 w-px bg-white/15" aria-hidden="true" />
 
       <div className="flex items-center gap-1">
-        <span className="text-[10px] tracking-wider text-slate-500 uppercase font-semibold">ZOOM</span>
+        <span className="text-[10px] tracking-wider text-slate-500 uppercase font-semibold">
+          ZOOM
+        </span>
         <span className="font-semibold text-cyan-300">{Math.round(zoom * 100)}%</span>
       </div>
     </div>

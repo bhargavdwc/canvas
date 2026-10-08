@@ -17,6 +17,8 @@ import {
 } from '../utils/coordinates';
 import { ChunkedMessageCache } from '../utils/messageCache';
 import { boundsContain, expandBounds, getViewportBounds, padBounds } from '../utils/viewport';
+import { BackgroundManager } from '../background/BackgroundManager';
+import type { EnvironmentLayerToggles } from '../environment/decorationTypes';
 
 /** Base world grid cell size. Every box and card snaps to this exact size. */
 export const BOX_SIZE = 100;
@@ -225,6 +227,8 @@ export class WorldRenderer {
   private app: Application | null = null;
   private destroyed = false;
 
+  /** Tiled deep-space artwork; always drawn beneath the grid and messages. */
+  private background = new BackgroundManager();
   private gridLayer = new Graphics();
   private dotLayer = new Graphics();
   private cardLayer = new Container();
@@ -276,7 +280,16 @@ export class WorldRenderer {
     canvas.setAttribute('role', 'application');
     this.host.appendChild(canvas);
 
-    app.stage.addChild(this.gridLayer, this.cardLayer, this.dotLayer);
+    app.stage.addChild(
+      this.background.tileLayer,
+      this.background.overlay,
+      this.gridLayer,
+      this.cardLayer,
+      this.dotLayer,
+    );
+    void this.background.init().then(() => {
+      this.dirty = true;
+    });
     app.ticker.add(this.tick);
 
     canvas.addEventListener('pointerdown', this.onPointerDown);
@@ -293,6 +306,15 @@ export class WorldRenderer {
         this.loadedBounds = null;
         this.dirty = true;
       }
+      if (state.showDebugOverlay !== prev.showDebugOverlay) {
+        this.dirty = true;
+      }
+      if (state.environmentToggles !== prev.environmentToggles) {
+        for (const [k, v] of Object.entries(state.environmentToggles) as [keyof EnvironmentLayerToggles, boolean][]) {
+          this.background.setLayerToggle(k, v);
+        }
+        this.dirty = true;
+      }
     });
     // A fly-to may have been requested before the renderer was ready.
     const pending = useWorldStore.getState().flyTo;
@@ -304,6 +326,7 @@ export class WorldRenderer {
     this.abort?.abort();
     this.unsubscribe?.();
     window.removeEventListener('keydown', this.onKeyDown);
+    this.background.destroy();
     const app = this.app;
     if (!app) return;
     const canvas = app.canvas;
@@ -342,11 +365,16 @@ export class WorldRenderer {
 
     const sizeChanged =
       size.width !== this.renderedSize.width || size.height !== this.renderedSize.height;
+    // Tile loads / cross-fades need repaints even when the camera is idle.
+    if (this.background.needsFrame()) this.dirty = true;
     if (camera !== this.renderedCamera || sizeChanged || this.dirty) {
       this.render(camera, size);
       this.renderedCamera = camera;
       this.renderedSize = size;
       this.dirty = false;
+    }
+    if (store.showDebugOverlay) {
+      store.setDebugStats(this.background.getDebugStats(camera, size));
     }
     this.maybeLoad(camera, size);
   };
@@ -388,6 +416,8 @@ export class WorldRenderer {
   // ------------------------------------------------------------------ drawing
 
   private render(camera: Camera, size: Size): void {
+    const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
+    this.background.update(camera, size, dpr);
     this.drawGrid(camera, size);
 
     const viewport = getViewportBounds(camera, size);
