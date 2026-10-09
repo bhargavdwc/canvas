@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { SessionInfo, WorldMessage, WorldPoint } from '@canvas/shared-types';
 import { clampCamera, clampZoom, type Camera } from '../utils/coordinates';
-import { DEFAULT_ENVIRONMENT_TOGGLES, type EnvironmentLayerToggles } from '../environment/decorationTypes';
+import type { EnvironmentLayerToggles } from '../environment/decorationTypes';
 import type { BackgroundDebugStats } from '../background/BackgroundManager';
 
 export interface FlyToRequest {
@@ -46,7 +46,7 @@ interface WorldState {
   setEnvironmentToggle: <K extends keyof EnvironmentLayerToggles>(key: K, value: boolean) => void;
 }
 
-export const DEFAULT_CAMERA: Camera = { x: 0, y: 0, zoom: 0.02 };
+export const DEFAULT_CAMERA: Camera = { x: 0, y: 0, zoom: 0.6 };
 
 let nonce = 0;
 let toastTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -65,7 +65,16 @@ export const useWorldStore = create<WorldState>((set, get) => ({
 
   debugStats: null,
   showDebugOverlay: false,
-  environmentToggles: { ...DEFAULT_ENVIRONMENT_TOGGLES },
+  environmentToggles: {
+    stars: false,
+    nebula: false,
+    rings: false,
+    nodes: false,
+    paths: false,
+    planets: false,
+    structures: false,
+    coordinates: false,
+  },
 
   setCamera: (camera) => set({ camera: clampCamera(camera) }),
 
@@ -86,7 +95,11 @@ export const useWorldStore = create<WorldState>((set, get) => ({
 
   selectMessage: (message) => set({ selectedMessage: message }),
   markInteracted: () => set({ hasInteracted: true }),
-  setVisibleCount: (count) => set({ visibleCount: count }),
+  setVisibleCount: (count) => {
+    if (get().visibleCount !== count) {
+      set({ visibleCount: count });
+    }
+  },
   setSession: (session) => set({ session }),
   setComposerOpen: (open) => set({ isComposerOpen: open }),
 

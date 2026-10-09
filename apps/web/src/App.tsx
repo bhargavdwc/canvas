@@ -27,17 +27,16 @@ export default function App() {
 
   const handleRandom = () => {
     const pt = pickDiscoveryPoint();
-    useWorldStore.getState().requestFlyTo(pt, 0.02);
+    useWorldStore.getState().requestFlyTo(pt, 0.8);
     useWorldStore.getState().markInteracted();
   };
 
   return (
-    <main className="relative h-dvh w-dvw overflow-hidden bg-black">
+    <main className="relative flex h-dvh w-dvw flex-col overflow-hidden bg-black">
       <h1 className="sr-only">Canvas — an infinite world of messages</h1>
-      <WorldCanvas />
 
       {/* Top Navbar: Solid Black BG, Left: Random with logo, Middle: Coordinate, Right: Search */}
-      <header className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 border-b border-white/15 bg-black px-4 py-2 sm:px-6 shadow-[0_4px_30px_rgba(0,0,0,0.95)]">
+      <header className="relative z-20 flex shrink-0 items-center justify-between gap-3 border-b border-white/15 bg-black px-4 py-2 sm:px-6 shadow-[0_4px_30px_rgba(0,0,0,0.95)]">
         {/* Left: Random Logo & Button */}
         <div className="flex items-center shrink-0">
           <button
@@ -57,10 +56,10 @@ export default function App() {
               strokeLinejoin="round"
               aria-hidden="true"
             >
-              <rect x="3" y="3" width="18" height="18" rx="4" />
-              <circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" />
-              <circle cx="16" cy="16" r="1.5" fill="currentColor" stroke="none" />
-              <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+              <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.8-1.1 2-1.7 3.3-1.7H22" />
+              <path d="m18 2 4 4-4 4" />
+              <path d="M2 6h1.4c1.3 0 2.5.6 3.3 1.7l6.1 8.6c.8 1.1 2 1.7 3.3 1.7H22" />
+              <path d="m18 22 4-4-4-4" />
             </svg>
             <span className="text-xs sm:text-sm font-semibold tracking-tight text-white transition-colors group-hover:text-cyan-300">
               Random
@@ -79,19 +78,24 @@ export default function App() {
         </div>
       </header>
 
-      {/* Bottom Floating Control Dock */}
-      <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between gap-3 p-3.5 sm:p-5">
-        {/* Bottom Left: Live Telemetry & Quick Tutorial Hint */}
-        <div className="pointer-events-auto flex flex-col items-start gap-2.5">
-          <InteractionHint />
-          <WorldStatus />
-        </div>
+      {/* World Canvas Viewport: begins directly at navbar border */}
+      <div className="relative flex-1 min-h-0 w-full overflow-hidden">
+        <WorldCanvas />
 
-        {/* Bottom Right: Spatial Controls Dock */}
-        <div className="pointer-events-auto">
-          <WorldControls />
-        </div>
-      </footer>
+        {/* Bottom Floating Control Dock */}
+        <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-end justify-between gap-3 p-3.5 sm:p-5">
+          {/* Bottom Left: Live Telemetry & Quick Tutorial Hint */}
+          <div className="pointer-events-auto flex flex-col items-start gap-2.5">
+            <InteractionHint />
+            <WorldStatus />
+          </div>
+
+          {/* Bottom Right: Spatial Controls Dock */}
+          <div className="pointer-events-auto">
+            <WorldControls />
+          </div>
+        </footer>
+      </div>
 
       {/* Modals & Overlay Portals */}
       <MessageModal />

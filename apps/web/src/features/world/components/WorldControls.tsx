@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useWorldStore } from '../store/worldStore';
+import { getMinZoom } from '../utils/coordinates';
 
 function IconButton(props: { id: string; label: string; onClick: () => void; children: ReactNode }) {
   return (
@@ -29,6 +30,7 @@ const iconProps = {
 
 export function WorldControls() {
   const zoomBy = useWorldStore((s) => s.zoomBy);
+  const requestFlyTo = useWorldStore((s) => s.requestFlyTo);
 
   return (
     <div className="flex flex-col items-end">
@@ -41,6 +43,15 @@ export function WorldControls() {
         <IconButton id="zoom-out" label="Zoom out (-)" onClick={() => zoomBy(1 / 1.6)}>
           <svg {...iconProps}>
             <path d="M5 12h14" />
+          </svg>
+        </IconButton>
+        <IconButton
+          id="zoom-fit-world"
+          label="View full canvas (1,000,000 × 1,000,000)"
+          onClick={() => requestFlyTo({ x: 0, y: 0 }, getMinZoom())}
+        >
+          <svg {...iconProps}>
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
           </svg>
         </IconButton>
       </div>

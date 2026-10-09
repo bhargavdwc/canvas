@@ -49,9 +49,8 @@ export function WorldStatus() {
       id="world-stats"
       className="flex items-center gap-2.5 rounded-full border border-white/15 bg-black px-3.5 py-1.5 font-mono text-[11px] text-slate-400 select-none shadow-lg shadow-black/60"
     >
-      <span className="relative flex size-2 shrink-0">
-        <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-        <span className="relative inline-flex size-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
+      <span className="flex size-2 shrink-0 items-center justify-center">
+        <span className="size-1.5 bg-emerald-400 shadow-[0_0_6px_#10b981]"></span>
       </span>
       <span>
         <strong className="font-semibold text-slate-100">{visible.toLocaleString()}</strong> in view

@@ -1,5 +1,11 @@
 import { useWorldStore } from '../store/worldStore';
 
+function formatZoom(zoom: number): string {
+  const percent = zoom * 100;
+  if (percent >= 1) return `${Math.round(percent)}%`;
+  return `${Number(percent.toFixed(2))}%`;
+}
+
 /** Live telemetry readout of the camera centre coordinates and zoom level. */
 export function CoordinateDisplay() {
   const x = useWorldStore((s) => Math.round(s.camera.x));
@@ -23,8 +29,7 @@ export function CoordinateDisplay() {
           strokeLinejoin="round"
           aria-hidden="true"
         >
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+          <path d="M12 3v18M3 12h18" />
         </svg>
         <span className="text-[10px] tracking-wider text-slate-500 uppercase font-semibold">X</span>
         <span className="inline-block min-w-[5ch] text-right font-medium text-slate-100">{x}</span>
@@ -43,7 +48,7 @@ export function CoordinateDisplay() {
         <span className="text-[10px] tracking-wider text-slate-500 uppercase font-semibold">
           ZOOM
         </span>
-        <span className="font-semibold text-cyan-300">{Math.round(zoom * 100)}%</span>
+        <span className="font-semibold text-cyan-300">{formatZoom(zoom)}</span>
       </div>
     </div>
   );

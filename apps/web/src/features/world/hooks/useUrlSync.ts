@@ -13,7 +13,7 @@ export function useUrlSync(): void {
     const initial = getInitialPointFromUrl();
     if (initial) {
       const { camera, setCamera } = useWorldStore.getState();
-      setCamera({ ...camera, x: initial.x, y: initial.y, zoom: 0.02 });
+      setCamera({ ...camera, x: initial.x, y: initial.y, zoom: camera.zoom });
     }
 
     let timer: ReturnType<typeof setTimeout> | undefined;

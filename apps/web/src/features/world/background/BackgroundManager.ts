@@ -3,8 +3,8 @@ import type { Camera, Size } from '../utils/coordinates';
 import { ProceduralEnvironment } from '../environment/ProceduralEnvironment';
 import type { EnvironmentLayerToggles, EnvironmentStats } from '../environment/decorationTypes';
 
-export const BACKGROUND_OVERLAY_COLOR = 0x02040c;
-export const BACKGROUND_OVERLAY_ALPHA = 0.22;
+export const BACKGROUND_OVERLAY_COLOR = 0x000000;
+export const BACKGROUND_OVERLAY_ALPHA = 0;
 
 export interface BackgroundDebugStats {
   worldX: number;
@@ -20,49 +20,33 @@ export interface BackgroundDebugStats {
 
 /**
  * Top-level background manager interfacing with WorldRenderer.
- * Houses the pure code-generated procedural cosmos (StarField, Nebula, OrbitalRings,
- * SpatialNodes, ConnectionPaths, Planets, and FloatingStructures).
- * Operates in world coordinates with zero raster background images.
+ * Solid black background canvas with zero circle, dot, or cosmic decorations.
  */
 export class BackgroundManager {
-  /** BackgroundContainer holding the Procedural Environment. */
+  /** BackgroundContainer holding any background geometry (empty for solid black). */
   readonly tileLayer = new Container();
 
-  /** AtmosphereContainer: screen-space dark veil for grid/card contrast. */
+  /** AtmosphereContainer: screen-space veil (cleared for solid black). */
   readonly overlay = new Graphics();
 
-  /** Code-generated procedural cosmos. */
+  /** Code-generated procedural cosmos (kept idle and unmounted for pure black). */
   readonly environment = new ProceduralEnvironment();
 
-  private changed = true;
   private destroyed = false;
 
   async init(): Promise<void> {
-    this.tileLayer.addChild(this.environment.container);
-    this.changed = true;
+    // Solid pure black: do not mount procedural cosmos decorations
+    this.tileLayer.removeChildren();
+    this.overlay.clear();
   }
 
   needsFrame(): boolean {
-    return this.changed || this.environment.needsFrame();
+    return false;
   }
 
-  update(camera: Camera, size: Size, _dpr = 1): void {
-    if (this.destroyed || !size.width || !size.height) return;
-    this.changed = false;
-
-    // Screen-space dark veil
+  update(_camera: Camera, _size: Size, _dpr = 1): void {
+    if (this.destroyed) return;
     this.overlay.clear();
-    this.overlay.rect(0, 0, size.width, size.height).fill({
-      color: BACKGROUND_OVERLAY_COLOR,
-      alpha: BACKGROUND_OVERLAY_ALPHA,
-    });
-
-    // Directly bind background container to camera world transform
-    this.tileLayer.position.set(size.width / 2, size.height / 2);
-    this.tileLayer.scale.set(camera.zoom);
-
-    // Update Procedural Environment
-    this.environment.update(camera, size);
   }
 
   getDebugStats(camera: Camera, size: Size): BackgroundDebugStats {
@@ -81,7 +65,6 @@ export class BackgroundManager {
 
   setLayerToggle<K extends keyof EnvironmentLayerToggles>(key: K, value: boolean): void {
     this.environment.setToggle(key, value);
-    this.changed = true;
   }
 
   destroy(): void {

@@ -1,11 +1,12 @@
 import { Application, Container, Graphics, Text, type Ticker } from 'pixi.js';
-import { WORLD_HALF_EXTENT, type WorldBounds, type WorldMessage } from '@canvas/shared-types';
+import type { WorldBounds, WorldMessage } from '@canvas/shared-types';
 import { useWorldStore } from '../store/worldStore';
 import { fetchMessagesInBounds } from '../services/worldApi';
 import {
   clamp,
   clampCamera,
   clampZoom,
+  getMinZoom,
   screenToWorld,
   zoomAt,
   type Camera,
@@ -18,6 +19,7 @@ import {
 import { ChunkedMessageCache } from '../utils/messageCache';
 import { boundsContain, expandBounds, getViewportBounds, padBounds } from '../utils/viewport';
 import { BackgroundManager } from '../background/BackgroundManager';
+import { MapLodManager } from '../map';
 import type { EnvironmentLayerToggles } from '../environment/decorationTypes';
 
 /** Base world grid cell size. Every box and card snaps to this exact size. */
@@ -229,6 +231,8 @@ export class WorldRenderer {
 
   /** Tiled deep-space artwork; always drawn beneath the grid and messages. */
   private background = new BackgroundManager();
+  /** Multi-level vector geographic map LOD manager. */
+  private mapManager = new MapLodManager();
   private gridLayer = new Graphics();
   private dotLayer = new Graphics();
   private cardLayer = new Container();
@@ -283,6 +287,7 @@ export class WorldRenderer {
     app.stage.addChild(
       this.background.tileLayer,
       this.background.overlay,
+      this.mapManager.container,
       this.gridLayer,
       this.cardLayer,
       this.dotLayer,
@@ -327,6 +332,7 @@ export class WorldRenderer {
     this.unsubscribe?.();
     window.removeEventListener('keydown', this.onKeyDown);
     this.background.destroy();
+    this.mapManager.destroy();
     const app = this.app;
     if (!app) return;
     const canvas = app.canvas;
@@ -418,6 +424,7 @@ export class WorldRenderer {
   private render(camera: Camera, size: Size): void {
     const dpr = typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1;
     this.background.update(camera, size, dpr);
+    this.mapManager.update(camera, size);
     this.drawGrid(camera, size);
 
     const viewport = getViewportBounds(camera, size);
@@ -542,7 +549,7 @@ export class WorldRenderer {
         g.moveTo(leftScreenX, sy(edgeY)).lineTo(rightScreenX, sy(edgeY));
       }
     }
-    g.stroke({ width: 1.5, color: 0xffffff, alpha: 0.35 });
+    g.stroke({ width: 2, color: 0xffffff, alpha: 0.35 });
   }
 
   private drawDots(visible: WorldMessage[], camera: Camera, size: Size): void {
@@ -550,7 +557,19 @@ export class WorldRenderer {
     g.clear();
     const buckets: WorldMessage[][] = ACCENTS.map(() => []);
     for (const m of visible) buckets[accentIndex(m.id)]?.push(m);
-    const r = Math.max(1.2, Math.min(2.5, camera.zoom * 40));
+
+    // Calculate proximity from fully zoomed out (minZoom) to close (DOT_ZOOM)
+    const minZ = getMinZoom(size);
+    const proximity = clamp((camera.zoom - minZ) / (DOT_ZOOM - minZ), 0, 1);
+    const t = Math.pow(proximity, 0.85);
+
+    // Fade brightness: faint/dim when far away (fully zoomed out), bright when zooming close
+    const strokeAlpha = 0.12 + 0.73 * t;
+    const fillAlpha = 0.20 + 0.75 * t;
+
+    // Subpixel marker size at far zoom out (1.5px), smoothly scaling up to 3.5px close
+    const markerSize = 1.5 + 2.0 * proximity;
+
     buckets.forEach((bucket, i) => {
       if (bucket.length === 0) return;
       for (const m of bucket) {
@@ -558,19 +577,25 @@ export class WorldRenderer {
         const bx = Math.floor(m.position.x / BOX_SIZE) * BOX_SIZE;
         const by = Math.floor(m.position.y / BOX_SIZE) * BOX_SIZE;
         const topY = by + BOX_SIZE;
-        const centerX = bx + width / 2;
-        const centerY = topY - height / 2;
-        const px = (centerX - camera.x) * camera.zoom + size.width / 2;
-        const py = (camera.y - centerY) * camera.zoom + size.height / 2;
-        g.rect(px - r, py - r, r * 2, r * 2);
+        const px = (bx - camera.x) * camera.zoom + size.width / 2;
+        const py = (camera.y - topY) * camera.zoom + size.height / 2;
+        const rw = Math.max(markerSize, width * camera.zoom);
+        const rh = Math.max(markerSize, height * camera.zoom);
+        g.rect(px, py, rw, rh);
       }
-      g.fill({ color: ACCENTS[i] as number, alpha: 0.9 });
+      g.fill({ color: 0x000000, alpha: fillAlpha });
+      g.stroke({ width: 1, color: ACCENTS[i] as number, alpha: strokeAlpha });
     });
   }
 
   private drawCards(visible: WorldMessage[], camera: Camera, size: Size): void {
     this.cardLayer.position.set(size.width / 2, size.height / 2);
     this.cardLayer.scale.set(camera.zoom);
+
+    // Smooth card opacity transition between DOT_ZOOM (0.08) and close reading zoom (0.25+)
+    const cardProximity = clamp((camera.zoom - DOT_ZOOM) / (0.25 - DOT_ZOOM), 0, 1);
+    this.cardLayer.alpha = 0.85 + 0.15 * cardProximity;
+
     const showText = camera.zoom >= TEXT_ZOOM;
     const seen = new Set<string>();
 
@@ -631,17 +656,13 @@ export class WorldRenderer {
       bg.stroke({ width: 1, color: 0xffffff, alpha: 0.08 });
     }
 
-    // 3. Crisp outer box border set perfectly on the grid lines
+    // 3. Crisp outer box border set perfectly on the grid lines (full bright when close)
     bg.rect(0, 0, width, height)
-      .stroke({ width: 1.5, color: accent, alpha: 0.75 });
-
-    // 4. Corner beacon dot
-    bg.circle(11, 12, 2.5)
-      .fill({ color: accent, alpha: 0.95 });
+      .stroke({ width: 1.5, color: accent, alpha: 0.85 });
 
     root.addChild(bg);
 
-    // 5. Dedicated text container with strict inner mask so outer border is never clipped
+    // 4. Dedicated text container with strict inner mask so outer border is never clipped
     const textGroup = new Container();
     const mask = new Graphics();
     mask.rect(1, 1, width - 2, height - 2).fill({ color: 0xffffff });
@@ -682,7 +703,7 @@ export class WorldRenderer {
       },
       resolution,
     });
-    view.coord.position.set(20, 7);
+    view.coord.position.set(12, 7);
     view.textGroup.addChild(view.body, view.coord);
   }
 
@@ -793,10 +814,15 @@ export class WorldRenderer {
       const p = screenToWorld(current.x, current.y, camera, this.size);
       const targetX = Math.floor(p.x / BOX_SIZE) * BOX_SIZE;
       const targetY = Math.floor(p.y / BOX_SIZE) * BOX_SIZE;
-      const E = WORLD_HALF_EXTENT;
-      const isOutside = targetX < -E || targetX > E || targetY < -E || targetY > E;
-      const isFilled = isOutside || Boolean(this.hit(current.x, current.y) || this.isBoxOccupied(targetX, targetY));
-      canvas.style.cursor = isFilled ? 'not-allowed' : 'pointer';
+      const isOutside = targetX < WORLD_MIN_X || targetX > WORLD_MAX_X || targetY < WORLD_MIN_Y || targetY > WORLD_MAX_Y;
+      if (isOutside) {
+        canvas.style.cursor = 'not-allowed';
+      } else if (camera.zoom < 0.05) {
+        canvas.style.cursor = 'zoom-in';
+      } else {
+        const isFilled = Boolean(this.hit(current.x, current.y) || this.isBoxOccupied(targetX, targetY));
+        canvas.style.cursor = isFilled ? 'not-allowed' : 'pointer';
+      }
       return;
     }
 
@@ -860,9 +886,14 @@ export class WorldRenderer {
       const targetX = Math.floor(p.x / BOX_SIZE) * BOX_SIZE;
       const targetY = Math.floor(p.y / BOX_SIZE) * BOX_SIZE;
 
-      const E = WORLD_HALF_EXTENT;
-      if (targetX < -E || targetX > E || targetY < -E || targetY > E) {
+      if (targetX < WORLD_MIN_X || targetX > WORLD_MAX_X || targetY < WORLD_MIN_Y || targetY > WORLD_MAX_Y) {
         return; // Clicked outside the world boundary
+      }
+
+      if (camera.zoom < 0.05) {
+        // Zoomed far out: clicking zooms directly into this part of the world
+        useWorldStore.getState().requestFlyTo({ x: targetX, y: targetY }, 0.6);
+        return;
       }
 
       const hitMessage = this.hit(point.x, point.y);

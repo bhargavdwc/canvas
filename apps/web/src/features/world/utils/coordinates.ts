@@ -1,5 +1,4 @@
 import { WORLD_HALF_EXTENT, type WorldPoint } from '@canvas/shared-types';
-import { worldPointSchema } from '@canvas/validation';
 
 /**
  * Camera: the world point shown at the centre of the screen plus a zoom factor
@@ -16,22 +15,42 @@ export interface Size {
   height: number;
 }
 
-export const MIN_ZOOM = 0.02;
+export const WORLD_BOX_SIZE = 100;
+export const WORLD_HALF_EXTENT_X = WORLD_HALF_EXTENT;
+export const WORLD_HALF_EXTENT_Y = 500_000;
+
+export const WORLD_MIN_X = -WORLD_HALF_EXTENT_X;
+export const WORLD_MAX_X = WORLD_HALF_EXTENT_X + WORLD_BOX_SIZE;
+export const WORLD_MIN_Y = -WORLD_HALF_EXTENT_Y;
+export const WORLD_MAX_Y = WORLD_HALF_EXTENT_Y + WORLD_BOX_SIZE;
+
+/**
+ * Calculates the exact zoom required so the horizontal canvas
+ * spans edge-to-edge across the viewport.
+ */
+export function getMinZoom(size?: Size): number {
+  let w = size?.width ?? 0;
+  if (w <= 0 && typeof window !== 'undefined') {
+    w = window.innerWidth;
+  }
+  if (w <= 0) {
+    return 0.00072; // default for 1440px desktop
+  }
+  const span = WORLD_MAX_X - WORLD_MIN_X;
+  return w / span;
+}
+
+export const MIN_ZOOM = 0.00072;
 export const MAX_ZOOM = 4;
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-export function clampZoom(zoom: number): number {
-  return clamp(zoom, MIN_ZOOM, MAX_ZOOM);
+export function clampZoom(zoom: number, size?: Size): number {
+  const min = getMinZoom(size);
+  return clamp(zoom, min, MAX_ZOOM);
 }
-
-export const WORLD_BOX_SIZE = 100;
-export const WORLD_MIN_X = -WORLD_HALF_EXTENT;
-export const WORLD_MAX_X = WORLD_HALF_EXTENT + WORLD_BOX_SIZE;
-export const WORLD_MIN_Y = -WORLD_HALF_EXTENT;
-export const WORLD_MAX_Y = WORLD_HALF_EXTENT + WORLD_BOX_SIZE;
 
 export interface CameraInsets {
   top?: number;
@@ -52,7 +71,7 @@ export function getTopNavbarHeight(): number {
 }
 
 export function clampCamera(camera: Camera, size?: Size, insets?: CameraInsets): Camera {
-  const zoom = clampZoom(camera.zoom);
+  const zoom = clampZoom(camera.zoom, size);
 
   const minLimitX = WORLD_MIN_X;
   const maxLimitX = WORLD_MAX_X;
@@ -67,9 +86,7 @@ export function clampCamera(camera: Camera, size?: Size, insets?: CameraInsets):
     };
   }
 
-  // Measure top navbar dynamically so the last box never collides with or hides under the navbar on any screen size
-  const navbarH = getTopNavbarHeight();
-  const topInset = insets?.top ?? (navbarH + 8);
+  const topInset = insets?.top ?? 0;
   const bottomInset = insets?.bottom ?? 0;
   const leftInset = insets?.left ?? 0;
   const rightInset = insets?.right ?? 0;
@@ -82,9 +99,14 @@ export function clampCamera(camera: Camera, size?: Size, insets?: CameraInsets):
   const minY = minLimitY + (halfH - bottomInset) / zoom;
   const maxY = maxLimitY - (halfH - topInset) / zoom;
 
+  // When at overview zoom level, lock vertical camera to center so there is ZERO vertical scroll
+  const isOverview = zoom <= getMinZoom(size) * 1.05;
+  const centerY = (minLimitY + maxLimitY) / 2;
+  const clampedY = isOverview || minY > maxY ? centerY : clamp(camera.y, minY, maxY);
+
   return {
     x: minX <= maxX ? clamp(camera.x, minX, maxX) : (minLimitX + maxLimitX) / 2,
-    y: minY <= maxY ? clamp(camera.y, minY, maxY) : (minLimitY + maxLimitY) / 2,
+    y: clampedY,
     zoom,
   };
 }
@@ -107,7 +129,7 @@ export function screenToWorld(sx: number, sy: number, camera: Camera, size: Size
 
 /** Change zoom while keeping the world point under screen position (sx, sy) fixed. */
 export function zoomAt(camera: Camera, size: Size, sx: number, sy: number, zoom: number): Camera {
-  const next = clampZoom(zoom);
+  const next = clampZoom(zoom, size);
   const anchor = screenToWorld(sx, sy, camera, size);
   return clampCamera({
     zoom: next,
@@ -123,16 +145,96 @@ export function formatCoordinate(point: WorldPoint): string {
 const INPUT_PATTERN = /^\s*@?\(?\s*(-?\d+(?:\.\d+)?)\s*(?:,|\s)\s*(-?\d+(?:\.\d+)?)\s*\)?\s*$/;
 const WORLD_PATH_PATTERN = /^\/world\/(-?\d+)\/(-?\d+)\/?$/;
 
+export type CoordinateValidationResult =
+  | { status: 'valid'; point: WorldPoint }
+  | { status: 'invalid_format'; message: string }
+  | {
+      status: 'out_of_bounds';
+      message: string;
+      xOutOfBounds: boolean;
+      yOutOfBounds: boolean;
+      clampedPoint: WorldPoint;
+    };
+
+/**
+ * Validates coordinate user input against canvas boundaries.
+ * Returns detailed status, boundary limit messages, and nearest clamped coordinate.
+ */
+export function validateCoordinateInput(input: string): CoordinateValidationResult {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return {
+      status: 'invalid_format',
+      message: 'Enter format: x, y (e.g. 1245, -782)',
+    };
+  }
+
+  const match = INPUT_PATTERN.exec(trimmed);
+  if (!match) {
+    return {
+      status: 'invalid_format',
+      message: 'Enter format: x, y (e.g. 1245, -782)',
+    };
+  }
+
+  const rawX = Number(match[1]);
+  const rawY = Number(match[2]);
+
+  if (!Number.isFinite(rawX) || !Number.isFinite(rawY)) {
+    return {
+      status: 'invalid_format',
+      message: 'Coordinates must be valid numbers.',
+    };
+  }
+
+  const x = Math.round(rawX);
+  const y = Math.round(rawY);
+
+  const xMin = WORLD_MIN_X;
+  const xMax = WORLD_HALF_EXTENT_X; // 1,000,000
+  const yMin = WORLD_MIN_Y;
+  const yMax = WORLD_HALF_EXTENT_Y; // 500,000
+
+  const xOutOfBounds = x < xMin || x > xMax;
+  const yOutOfBounds = y < yMin || y > yMax;
+
+  if (xOutOfBounds || yOutOfBounds) {
+    const clampedPoint = {
+      x: clamp(x, xMin, xMax),
+      y: clamp(y, yMin, yMax),
+    };
+
+    let message = '';
+    if (xOutOfBounds && yOutOfBounds) {
+      message = `Outside canvas! Max size is X ±${xMax.toLocaleString()}, Y ±${yMax.toLocaleString()}`;
+    } else if (xOutOfBounds) {
+      message = `Outside canvas! Max X size is ±${xMax.toLocaleString()}`;
+    } else {
+      message = `Outside canvas! Max Y size is ±${yMax.toLocaleString()}`;
+    }
+
+    return {
+      status: 'out_of_bounds',
+      message,
+      xOutOfBounds,
+      yOutOfBounds,
+      clampedPoint,
+    };
+  }
+
+  return {
+    status: 'valid',
+    point: { x, y },
+  };
+}
+
 /**
  * Parse free-form user input such as "1245, -782", "1245 -782", "@1245,-782" or "(1,2)".
  * Returns null when the text is not a valid in-range coordinate.
  */
 export function parseCoordinateInput(input: string): WorldPoint | null {
-  const match = INPUT_PATTERN.exec(input);
-  if (!match) return null;
-  const candidate = { x: Math.round(Number(match[1])), y: Math.round(Number(match[2])) };
-  const result = worldPointSchema.safeParse(candidate);
-  return result.success ? result.data : null;
+  const result = validateCoordinateInput(input);
+  return result.status === 'valid' ? result.point : null;
 }
 
 /** Parse a location pathname: "/@x,y" or "/world/x/y". */

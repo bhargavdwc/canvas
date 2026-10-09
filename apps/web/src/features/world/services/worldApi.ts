@@ -1,4 +1,5 @@
 import {
+  MAX_MESSAGE_QUERY_SPAN,
   WORLD_HALF_EXTENT,
   type ApiResponse,
   type ReportReason,
@@ -134,11 +135,29 @@ export async function fetchMessagesInBounds(
       const maxY = Math.max(-WORLD_HALF_EXTENT, Math.min(WORLD_HALF_EXTENT, Math.round(bounds.maxY)));
       if (minX > maxX || minY > maxY) return [];
 
+      let qMinX = minX;
+      let qMaxX = maxX;
+      let qMinY = minY;
+      let qMaxY = maxY;
+
+      if (qMaxX - qMinX > MAX_MESSAGE_QUERY_SPAN) {
+        const cx = Math.round((qMinX + qMaxX) / 2);
+        const half = Math.floor(MAX_MESSAGE_QUERY_SPAN / 2);
+        qMinX = Math.max(-WORLD_HALF_EXTENT, cx - half);
+        qMaxX = Math.min(WORLD_HALF_EXTENT, qMinX + MAX_MESSAGE_QUERY_SPAN);
+      }
+      if (qMaxY - qMinY > MAX_MESSAGE_QUERY_SPAN) {
+        const cy = Math.round((qMinY + qMaxY) / 2);
+        const half = Math.floor(MAX_MESSAGE_QUERY_SPAN / 2);
+        qMinY = Math.max(-WORLD_HALF_EXTENT, cy - half);
+        qMaxY = Math.min(WORLD_HALF_EXTENT, qMinY + MAX_MESSAGE_QUERY_SPAN);
+      }
+
       const params = new URLSearchParams({
-        minX: String(minX),
-        maxX: String(maxX),
-        minY: String(minY),
-        maxY: String(maxY),
+        minX: String(qMinX),
+        maxX: String(qMaxX),
+        minY: String(qMinY),
+        maxY: String(qMaxY),
         limit: '2000',
       });
       const res = await apiFetch(`/api/v1/world/messages?${params.toString()}`, { signal });

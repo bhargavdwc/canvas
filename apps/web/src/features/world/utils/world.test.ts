@@ -3,6 +3,7 @@ import { CHUNK_SIZE, MIN_MESSAGE_DISTANCE, type WorldMessage } from '@canvas/sha
 import {
   clampZoom,
   clampCamera,
+  getMinZoom,
   MAX_ZOOM,
   MIN_ZOOM,
   WORLD_MAX_X,
@@ -10,6 +11,7 @@ import {
   WORLD_MIN_X,
   WORLD_MIN_Y,
   parseCoordinateInput,
+  validateCoordinateInput,
   pathToPoint,
   pointToPath,
   screenToWorld,
@@ -85,6 +87,54 @@ describe('coordinate parsing', () => {
     expect(pathToPoint('/world/1245/-782')).toEqual(p);
     expect(pathToPoint('/')).toBeNull();
     expect(pathToPoint('/%E0%A4%A')).toBeNull();
+  });
+
+  describe('validateCoordinateInput', () => {
+    it('returns valid for coordinates within world boundaries', () => {
+      const res = validateCoordinateInput('100, -200');
+      expect(res.status).toBe('valid');
+      if (res.status === 'valid') {
+        expect(res.point).toEqual({ x: 100, y: -200 });
+      }
+    });
+
+    it('warns when X coordinate exceeds canvas width (±1,000,000)', () => {
+      const res = validateCoordinateInput('1500000, 200');
+      expect(res.status).toBe('out_of_bounds');
+      if (res.status === 'out_of_bounds') {
+        expect(res.xOutOfBounds).toBe(true);
+        expect(res.yOutOfBounds).toBe(false);
+        expect(res.message).toContain('Max X size');
+        expect(res.clampedPoint).toEqual({ x: 1000000, y: 200 });
+      }
+    });
+
+    it('warns when Y coordinate exceeds canvas height (±500,000)', () => {
+      const res = validateCoordinateInput('50, 750000');
+      expect(res.status).toBe('out_of_bounds');
+      if (res.status === 'out_of_bounds') {
+        expect(res.xOutOfBounds).toBe(false);
+        expect(res.yOutOfBounds).toBe(true);
+        expect(res.message).toContain('Max Y size');
+        expect(res.clampedPoint).toEqual({ x: 50, y: 500000 });
+      }
+    });
+
+    it('warns when both X and Y exceed canvas boundaries', () => {
+      const res = validateCoordinateInput('-2000000, -800000');
+      expect(res.status).toBe('out_of_bounds');
+      if (res.status === 'out_of_bounds') {
+        expect(res.xOutOfBounds).toBe(true);
+        expect(res.yOutOfBounds).toBe(true);
+        expect(res.message).toContain('Outside canvas');
+        expect(res.clampedPoint).toEqual({ x: -1000000, y: -500000 });
+      }
+    });
+
+    it('returns invalid_format for non-coordinate text', () => {
+      const res = validateCoordinateInput('hello world');
+      expect(res.status).toBe('invalid_format');
+    });
   });
 });
 
@@ -229,6 +279,21 @@ describe('clampCamera boundaries and navbar protection', () => {
     const clampedMin = clampCamera({ x: -2_000_000, y: -2_000_000, zoom: 1 });
     expect(clampedMin.x).toBe(WORLD_MIN_X);
     expect(clampedMin.y).toBe(WORLD_MIN_Y);
+  });
+
+  it('at getMinZoom, the canvas covers the viewport with zero vertical scroll', () => {
+    const vp: Size = { width: 1440, height: 756 };
+    const minZoom = getMinZoom(vp);
+    const camera = clampCamera({ x: 0, y: 100_000, zoom: minZoom }, vp);
+
+    // Left edge and right edge flush with viewport borders (zero horizontal blank space)
+    const topLeft = worldToScreen({ x: WORLD_MIN_X, y: WORLD_MAX_Y }, camera, vp);
+    const bottomRight = worldToScreen({ x: WORLD_MAX_X, y: WORLD_MIN_Y }, camera, vp);
+    expect(topLeft.x).toBeCloseTo(0, 1);
+    expect(bottomRight.x).toBeCloseTo(vp.width, 1);
+
+    // Vertical camera position is locked to center (no vertical scroll at overview)
+    expect(camera.y).toBe((WORLD_MIN_Y + WORLD_MAX_Y) / 2);
   });
 });
 

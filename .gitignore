@@ -10,6 +10,11 @@ coverage
 .data
 .data/*
 .tempmediaStorage
+*.crdownload
+package-lock.json
+
+# Raw geographic shapefile sources (large; use scripts/geo/process_boundaries.py)
+data/source/
 
 # Generated 16K world master (large; regenerate with pnpm world:master)
 apps/web/assets/world/world-master.png

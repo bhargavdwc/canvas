@@ -82,7 +82,7 @@ export function MessageComposer() {
                 <path d="M12 19l7-7 3 3-7 7-3-3z" />
                 <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
                 <path d="M2 2l7.586 7.586" />
-                <circle cx="11" cy="11" r="2" />
+                <line x1="10" y1="10" x2="12" y2="12" />
               </svg>
             </div>
             <div>
@@ -113,8 +113,7 @@ export function MessageComposer() {
           {/* Origin Coordinate */}
           <div className="flex items-center gap-2">
             <svg viewBox="0 0 24 24" className="size-3.5 text-zinc-400" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+              <path d="M12 3v18M3 12h18" />
             </svg>
             <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-zinc-500">Origin</span>
             <span className="font-mono font-semibold text-zinc-200">{pos ? `${pos.x}, ${pos.y}` : '0, 0'}</span>
@@ -203,10 +202,10 @@ export function MessageComposer() {
 
           {error && (
             <div className="mt-3 flex items-center gap-2 rounded-sm border border-red-900/50 bg-red-950/30 p-2.5 text-xs text-red-300">
-              <svg viewBox="0 0 24 24" className="size-4 shrink-0 text-red-400" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="8" x2="12" y2="12" />
-                <line x1="12" y1="16" x2="12.01" y2="16" />
+              <svg viewBox="0 0 24 24" className="size-4 shrink-0 text-red-400" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12,2 22,20 2,20" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="16" x2="12" y2="17" />
               </svg>
               <span>{error}</span>
             </div>
